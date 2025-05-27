@@ -3,6 +3,9 @@ package com.activitytracker;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class MultiThreadActivityTracker {
 
@@ -28,7 +31,7 @@ public class MultiThreadActivityTracker {
     public int countRecent(String userId, int seconds) {
         long currentTimeMillis = System.currentTimeMillis();
         Deque<Long> timestamps = userActivitiesTimestamps.getOrDefault(userId, new ArrayDeque<>());
-        synchronized (timestamps){
+        synchronized (timestamps) {
             while (!timestamps.isEmpty() && currentTimeMillis - timestamps.peekFirst() > seconds * 1000L) {
                 timestamps.pollFirst();
             }
@@ -40,16 +43,29 @@ public class MultiThreadActivityTracker {
 
     public static void main(String[] args) throws InterruptedException {
         MultiThreadActivityTracker activityTracker = new MultiThreadActivityTracker();
-        activityTracker.record("user1");
-        activityTracker.record("user1");
-        activityTracker.record("user1");
-        Thread.sleep(2000); // Simulate a delay of 2 seconds
-        activityTracker.record("user2");
-        activityTracker.record("user2");
-        activityTracker.record("user2");
-        Thread.sleep(2000); // Simulate a delay of 2 seconds
-        System.out.println(activityTracker.countRecent("user1", 4));
-        System.out.println(activityTracker.countRecent("user2", 5));
+        int threadCount = 10;
+        int actionsPerThread = 100;
+
+        ExecutorService executorService = Executors.newFixedThreadPool(10);
+
+        for (int i = 0; i < threadCount; i++) {
+            executorService.submit(
+                    () -> {
+                        for (int j = 0; j < actionsPerThread; j++) {
+                            activityTracker.record("user1");
+                        }
+                    }
+            );
+        }
+
+        executorService.shutdown();
+        boolean finished = executorService.awaitTermination(1, TimeUnit.MINUTES);
+
+        int expected = threadCount * actionsPerThread;
+        int actual = activityTracker.countRecent("user1", 60);
+
+        System.out.println(actual);
+
     }
 
 }
